@@ -11,7 +11,8 @@ fn main() {
 
     let games: Vec<Game> = puzzle_input.lines()
         .map(|line| Game::parse(line))
-        .collect();
+        .collect::<Option<Vec<Game>>>()
+        .unwrap();
     let games = games.iter()
         .filter(|g| g.is_possible(&max_hand));
     let sum: i32 = games.map(|g| g.get_id()).sum();
