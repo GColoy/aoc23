@@ -48,6 +48,10 @@ impl Hand {
         if self.blue < min_count.blue { hand.blue = min_count.blue }
         hand
     }
+
+    pub fn get_power(&self) -> i32 {
+        self.red * self.blue * self.green
+    }
 }
 
 #[cfg(test)]
