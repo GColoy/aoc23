@@ -59,7 +59,7 @@ mod test {
     use crate::logic::{Game, Hand};
 
     #[test]
-    fn test_is_possible_big_Game() {
+    fn test_is_possible_big_game() {
         let game = Game { id: 1, rounds: vec![
             Hand::new(3, 3, 3),
         ]};
@@ -67,7 +67,7 @@ mod test {
     }
 
     #[test]
-    fn test_is_possible_small_Game() {
+    fn test_is_possible_small_game() {
         let game = Game { id: 1, rounds: vec![
             Hand::new(3, 3, 3),
         ]};

@@ -42,8 +42,6 @@ impl Parse for Hand {
 
 #[cfg(test)]
 mod test {
-    use std::result;
-
     use crate::{logic::{Game, Hand}, parsing::Parse};
 
     #[test]
