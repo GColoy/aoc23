@@ -1,9 +1,14 @@
+#[derive(PartialEq, Debug)]
 pub struct Game {
     id: i32,
     rounds: Vec<Hand>
 }
 
 impl Game {
+    pub fn new(id: i32, rounds: Vec<Hand>) -> Game {
+        Game {id, rounds}
+    }
+
     pub fn is_possible(&self, max_count: &Hand) -> bool {
         self.rounds.iter().all(|h| h.is_possible(&max_count))
     }
@@ -13,10 +18,11 @@ impl Game {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub struct Hand {
-    red: i32,
-    green: i32, 
-    blue: i32
+    pub(super) red: i32,
+    pub(super) green: i32, 
+    pub(super) blue: i32
 }
 
 impl Hand {
@@ -25,9 +31,9 @@ impl Hand {
     }
     
     fn is_possible(&self, max_count: &Hand) -> bool {
-        if self.red < max_count.red { return false; }
-        if self.green < max_count.green { return false; }
-        if self.blue < max_count.blue { return false; }
+        if self.red > max_count.red { return false; }
+        if self.green > max_count.green { return false; }
+        if self.blue > max_count.blue { return false; }
         true
     }
 }
