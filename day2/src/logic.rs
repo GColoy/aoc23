@@ -4,13 +4,8 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn is_possible<T: Fn(&Color) -> i32>(&self, max_count: T) -> bool {
-        for round in &self.rounds {
-            if round.amount > max_count(&round.color) {
-                return false;
-            }
-        }
-        true
+    pub fn is_possible(&self, max_count: &Hand) -> bool {
+        self.rounds.iter().all(|h| h.is_possible(&max_count))
     }
 
     pub fn get_id(&self) -> i32 {
@@ -19,43 +14,41 @@ impl Game {
 }
 
 pub struct Hand {
-    amount: i32,
-    color: Color 
+    red: i32,
+    green: i32, 
+    blue: i32
 }
 
 impl Hand {
-    pub fn new(color: Color, amount: i32) -> Self {
-        Hand { amount, color }
+    pub fn new(red: i32, green: i32, blue: i32) -> Self {
+        Hand { red, green, blue }
     }
-}
-
-pub enum Color {
-    red,
-    green,
-    blue
+    
+    fn is_possible(&self, max_count: &Hand) -> bool {
+        if self.red < max_count.red { return false; }
+        if self.green < max_count.green { return false; }
+        if self.blue < max_count.blue { return false; }
+        true
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::logic::{Color, Game, Hand};
+    use crate::logic::{Game, Hand};
 
     #[test]
     fn test_is_possible_big_Game() {
         let game = Game { id: 1, rounds: vec![
-            Hand::new(Color::red, 3),
-            Hand::new(Color::green, 3),
-            Hand::new(Color::blue, 3),
+            Hand::new(3, 3, 3),
         ]};
-        assert!(!game.is_possible(|_| 2));
+        assert!(!game.is_possible(&Hand::new(2, 2, 2)));
     }
 
     #[test]
     fn test_is_possible_small_Game() {
         let game = Game { id: 1, rounds: vec![
-            Hand::new(Color::red, 3),
-            Hand::new(Color::green, 3),
-            Hand::new(Color::blue, 3),
+            Hand::new(3, 3, 3),
         ]};
-        assert!(game.is_possible(|_| 4));
+        assert!(game.is_possible(&Hand::new(4, 4, 4)));
     }
 }
