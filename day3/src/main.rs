@@ -1,53 +1,50 @@
-use std::{collections::{HashSet, VecDeque}, fs, usize};
+use std::{collections::HashSet, fs};
 
 use regex::Regex;
 
 fn main() {
-    let re = Regex::new(r"(?<number>\d+)|(?<symbol>\*)|(?<newline>\n)").unwrap();
-    let input = fs::read_to_string("input").unwrap();
+    let re = Regex::new(r"(?<number>\d+)|(?<symbol>\*)|(?<newline>\n)")
+        .expect("Invalid regex pattern");
+    let input = fs::read_to_string("input")
+        .expect("Failed to read input file");
 
     let mut set: HashSet<Point> = HashSet::new();
-    let mut map: VecDeque<InsertNumber> = VecDeque::new();
+    let mut map: Vec<InsertNumber> = Vec::new();
 
     let captures = re.captures_iter(&input);
     let mut line: usize = 0;
     let mut byte_offset = 0;
     for capture in captures {
         if let Some(c) = capture.name("number") {
-            map.push_back(InsertNumber {
+            map.push(InsertNumber {
                 start: c.start() - byte_offset,
                 end: c.end() - byte_offset,
                 line,
-                number: c.as_str().parse().unwrap(),
+                number: c.as_str().parse().expect("Failed to parse number"),
             });
-        }
-        if let Some(c) = capture.name("symbol") {
+        } else if let Some(c) = capture.name("symbol") {
             set.insert(Point(c.start() - byte_offset, line));
-        }
-        if let Some(c) = capture.name("newline") {
+        } else if let Some(c) = capture.name("newline") {
             line += 1;
             byte_offset = c.end();
         }
     }
 
-    let mapped_numbers = map.iter_mut()
+    let mapped_numbers = map.iter()
         .map(|n| (n.get_adjacent_symbols(&set), n))
-        .fold(VecDeque::<(Point, VecDeque<InsertNumber>)>::new(), |mut acc, (adj, n)| {
+        .fold(Vec::<(Point, Vec<InsertNumber>)>::new(), |mut acc, (adj, n)| {
             for point in adj {
                 if let Some((_point, arr)) = acc.iter_mut().find(|(symbol, _vec)| *symbol == point) {
-                    arr.push_back(n.to_owned());
+                    arr.push(*n);
                 } else {
-                    acc.push_back((point, VecDeque::from([n.to_owned()])));
+                    acc.push((point, vec![*n]));
                 }
             }
             acc
         });
     let sum: usize = mapped_numbers.iter()
         .filter(|(_p, arr)| arr.len() > 1)
-        .map(|(_p, arr)| 
-            arr.iter()
-            .map(InsertNumber::get_number)
-            .fold(1, |acc, n| acc * n))
+        .map(|(_p, arr)| arr.iter().map(|n| n.number).product::<usize>())
         .sum();
 
     println!("Sum of valid number is  {sum}");
@@ -64,32 +61,23 @@ struct InsertNumber {
 impl InsertNumber {
     #[allow(dead_code)]
     fn is_valid(&self, set: &HashSet<Point>) -> bool {
-        self.get_adjacents().iter().any(|p| set.contains(p))
+        self.get_adjacents().any(|p| set.contains(&p))
     }
 
     fn get_adjacent_symbols(&self, set: &HashSet<Point>) -> Vec<Point> {
-        self.get_adjacents().iter()
+        self.get_adjacents()
             .filter(|p| set.contains(p))
-            .map(|e| e.to_owned())
-            .collect::<Vec<Point>>()
+            .collect()
     }
 
-    fn get_adjacents(&self) -> Vec<Point> {
-        let mut vec: Vec<Point> = Vec::new();
+    fn get_adjacents(&self) -> impl Iterator<Item = Point> + '_ {
         let start = self.start.saturating_sub(1);
         let end = self.end.saturating_add(1);
-        for x in start..end {
-            for y_delta in -1..=1 {
-                if let Some(y) = self.line.checked_sub_signed(y_delta) {
-                    vec.push(Point(x, y));
-                }
-            }
-        }
-        vec
-    }
-
-    fn get_number(&self) -> usize {
-        self.number
+        (start..end).flat_map(move |x| {
+            (-1..=1).filter_map(move |y_delta| {
+                self.line.checked_sub_signed(y_delta).map(|y| Point(x, y))
+            })
+        })
     }
 }
 
@@ -98,7 +86,7 @@ struct Point(usize, usize);
 
 impl From<(usize, usize)> for Point {
     fn from(value: (usize, usize)) -> Self {
-        Point(value.0, value.0)
+        Point(value.0, value.1)
     }
 }
 
@@ -133,7 +121,7 @@ mod test {
             Point(8, 1),
             Point(8, 0),
         ];
-        let result = number.get_adjacents();
+        let result: Vec<Point> = number.get_adjacents().collect();
         assert_eq!(result, solution);
     }
 }

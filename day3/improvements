@@ -1,0 +1,266 @@
+  Memory Management
+
+  1. Use Vec instead of VecDeque
+  You're only using push_back and iteration - VecDeque has overhead for double-ended operations you don't need. Vec has better cache locality and is simpler.
+
+  2. Avoid allocations in hot paths (line 77-88)
+  get_adjacents() allocates a new Vec every call. Consider returning an iterator:
+  fn get_adjacents(&self) -> impl Iterator<Item = Point> + '_ {
+      let start = self.start.saturating_sub(1);
+      let end = self.end.saturating_add(1);
+      (start..end).flat_map(move |x| {
+          (-1..=1).filter_map(move |y_delta| {
+              self.line.checked_sub_signed(y_delta).map(|y| Point(x, y))
+          })
+      })
+  }
+
+  3. Use HashMap instead of linear search in fold (lines 35-44)
+  Your current code does acc.iter_mut().find(...) which is O(n) per insertion. A HashMap<Point, Vec<InsertNumber>> would be O(1):
+  let mut grouped: HashMap<Point, Vec<InsertNumber>> = HashMap::new();
+  for n in &map {
+      for point in n.get_adjacent_symbols(&set) {
+          grouped.entry(point).or_default().push(*n);
+      }
+  }
+
+  Reference Handling
+
+  1. iter_mut() when iter() suffices (line 33)
+  You never mutate n, so use .iter() instead of .iter_mut().
+
+  2. Unnecessary .to_owned() on Copy types (lines 38, 40, 73)
+  InsertNumber and Point are Copy. Just use *n or *e - .to_owned() is semantically for cloning heap data.
+
+  3. Redundant getter (line 91-93)
+  get_number(&self) just returns a public field. Either access .number directly, or if you want encapsulation, make the field private.
+
+  Bugs / Issues
+
+  Bug in From impl (line 101)
+  Point(value.0, value.0)  // Should be value.1 for second!
+
+  Unused import (line 1)
+  use std::usize does nothing useful - remove it.
+
+  Idiomatic Rust
+
+  1. Use .product() instead of fold (line 50)
+  .map(|(_p, arr)| arr.iter().map(|n| n.number).product::<usize>())
+
+  2. Better error messages
+  Replace .unwrap() with .expect("descriptive message") or use ? with proper error handling.
+
+  3. Consider if let chains or else if let
+  Lines 16-30 could be cleaner:
+  if let Some(c) = capture.name("number") {
+      // ...
+  } else if let Some(c) = capture.name("symbol") {
+      // ...
+  } else if let Some(c) = capture.name("newline") {
+      // ...
+  }
+
+  4. Naming
+  InsertNumber is unclear - consider PartNumber, NumberSpan, or NumberLocation.
+
+✻ Sautéed for 38s
+
+❯ Could please apply these improvements, except for the Hashmap instead of the Vec, I have question about that: I thought mabey a Vec is faster for smaller datasets. Is that true and if so, what is the threshhold for Vec beeing     
+  faster?                                                                                                                                                                                                                               
+
+● You're correct! For small datasets, Vec with linear search often outperforms HashMap due to:
+
+  1. Cache locality - Vec is contiguous in memory, so the CPU can prefetch efficiently
+  2. No hashing overhead - computing hashes has a cost
+  3. Simpler operations - iteration is just pointer arithmetic
+
+  Threshold: It varies by key complexity and hardware, but generally:
+  - < 10-20 elements: Vec usually wins
+  - 20-50 elements: roughly equal, benchmark to be sure
+  - > 50 elements: HashMap typically wins
+
+  For AoC inputs with potentially hundreds of symbols, HashMap would likely be faster, but your intuition is valid for small cases.
+
+  Let me apply the other improvements now.
+
+● Update(src/main.rs)
+  ⎿  Added 10 lines, removed 10 lines                                                                                                                                                                                                
+       1 -use std::{collections::{HashSet, VecDeque}, fs, usize};                                                                                                                                                                    
+       1 +use std::{collections::{HashSet, VecDeque}, fs};                                                                                                                                                                           
+       2  
+       3  use regex::Regex;
+       4  
+       5  fn main() {
+       6 -    let re = Regex::new(r"(?<number>\d+)|(?<symbol>\*)|(?<newline>\n)").unwrap();                                                                                                                                          
+       7 -    let input = fs::read_to_string("input").unwrap();                                                                                                                                                                      
+       6 +    let re = Regex::new(r"(?<number>\d+)|(?<symbol>\*)|(?<newline>\n)")                                                                                                                                                    
+       7 +        .expect("Invalid regex pattern");                                                                                                                                                                                  
+       8 +    let input = fs::read_to_string("input")                                                                                                                                                                                
+       9 +        .expect("Failed to read input file");                                                                                                                                                                              
+      10  
+      11      let mut set: HashSet<Point> = HashSet::new();
+      10 -    let mut map: VecDeque<InsertNumber> = VecDeque::new();                                                                                                                                                                 
+      12 +    let mut numbers: Vec<PartNumber> = Vec::new();                                                                                                                                                                         
+      13  
+      14      let captures = re.captures_iter(&input);
+      15      let mut line: usize = 0;
+      16      let mut byte_offset = 0;
+      17      for capture in captures {
+      18          if let Some(c) = capture.name("number") {
+      17 -            map.push_back(InsertNumber {                                                                                                                                                                                   
+      19 +            numbers.push(PartNumber {                                                                                                                                                                                      
+      20                  start: c.start() - byte_offset,
+      21                  end: c.end() - byte_offset,
+      22                  line,
+      21 -                number: c.as_str().parse().unwrap(),                                                                                                                                                                       
+      23 +                number: c.as_str().parse().expect("Failed to parse number"),                                                                                                                                               
+      24              });
+      23 -        }                                                                                                                                                                                                                  
+      24 -        if let Some(c) = capture.name("symbol") {                                                                                                                                                                          
+      25 +        } else if let Some(c) = capture.name("symbol") {                                                                                                                                                                   
+      26              set.insert(Point(c.start() - byte_offset, line));
+      26 -        }                                                                                                                                                                                                                  
+      27 -        if let Some(c) = capture.name("newline") {                                                                                                                                                                         
+      27 +        } else if let Some(c) = capture.name("newline") {                                                                                                                                                                  
+      28              line += 1;
+      29              byte_offset = c.end();
+      30          }
+
+● Update(src/main.rs)
+  ⎿  Added 5 lines, removed 8 lines                                                                                                                                                                                                  
+      30          }
+      31      }
+      32  
+      33 -    let mapped_numbers = map.iter_mut()                                                                                                                                                                                    
+      33 +    let mapped_numbers = numbers.iter()                                                                                                                                                                                    
+      34          .map(|n| (n.get_adjacent_symbols(&set), n))
+      35 -        .fold(VecDeque::<(Point, VecDeque<InsertNumber>)>::new(), |mut acc, (adj, n)| {                                                                                                                                    
+      35 +        .fold(Vec::<(Point, Vec<PartNumber>)>::new(), |mut acc, (adj, n)| {                                                                                                                                                
+      36              for point in adj {
+      37                  if let Some((_point, arr)) = acc.iter_mut().find(|(symbol, _vec)| *symbol == point) {
+      38 -                    arr.push_back(n.to_owned());                                                                                                                                                                           
+      38 +                    arr.push(*n);                                                                                                                                                                                          
+      39                  } else {
+      40 -                    acc.push_back((point, VecDeque::from([n.to_owned()])));                                                                                                                                                
+      40 +                    acc.push((point, vec![*n]));                                                                                                                                                                           
+      41                  }
+      42              }
+      43              acc
+      44          });
+      45      let sum: usize = mapped_numbers.iter()
+      46          .filter(|(_p, arr)| arr.len() > 1)
+      47 -        .map(|(_p, arr)|                                                                                                                                                                                                   
+      48 -            arr.iter()                                                                                                                                                                                                     
+      49 -            .map(InsertNumber::get_number)                                                                                                                                                                                 
+      50 -            .fold(1, |acc, n| acc * n))                                                                                                                                                                                    
+      47 +        .map(|(_p, arr)| arr.iter().map(|n| n.number).product::<usize>())                                                                                                                                                  
+      48          .sum();
+      49  
+      50      println!("Sum of valid number is  {sum}");
+
+● Update(src/main.rs)
+  ⎿  Added 12 lines, removed 21 lines                                                                                                                                                                                                
+      51  }
+      52  
+      53  #[derive(Debug, Clone, Copy)]
+      54 -struct InsertNumber {                                                                                                                                                                                                      
+      55 -    start: usize,                                                                                                                                                                                                          
+      54 +struct PartNumber {                                                                                                                                                                                                        
+      55 +    start: usize,                                                                                                                                                                                                          
+      56      end: usize,
+      57      line: usize,
+      58      number: usize,
+      59  }
+      60  
+      61 -impl InsertNumber {                                                                                                                                                                                                        
+      61 +impl PartNumber {                                                                                                                                                                                                          
+      62      #[allow(dead_code)]
+      63      fn is_valid(&self, set: &HashSet<Point>) -> bool {
+      64 -        self.get_adjacents().iter().any(|p| set.contains(p))                                                                                                                                                               
+      64 +        self.get_adjacents().any(|p| set.contains(&p))                                                                                                                                                                     
+      65      }
+      66  
+      67      fn get_adjacent_symbols(&self, set: &HashSet<Point>) -> Vec<Point> {
+      68 -        self.get_adjacents().iter()                                                                                                                                                                                        
+      68 +        self.get_adjacents()                                                                                                                                                                                               
+      69              .filter(|p| set.contains(p))
+      70 -            .map(|e| e.to_owned())                                                                                                                                                                                         
+      71 -            .collect::<Vec<Point>>()                                                                                                                                                                                       
+      70 +            .collect()                                                                                                                                                                                                     
+      71      }
+      72  
+      74 -    fn get_adjacents(&self) -> Vec<Point> {                                                                                                                                                                                
+      75 -        let mut vec: Vec<Point> = Vec::new();                                                                                                                                                                              
+      73 +    fn get_adjacents(&self) -> impl Iterator<Item = Point> + '_ {                                                                                                                                                          
+      74          let start = self.start.saturating_sub(1);
+      75          let end = self.end.saturating_add(1);
+      78 -        for x in start..end {                                                                                                                                                                                              
+      79 -            for y_delta in -1..=1 {                                                                                                                                                                                        
+      80 -                if let Some(y) = self.line.checked_sub_signed(y_delta) {                                                                                                                                                   
+      81 -                    vec.push(Point(x, y));                                                                                                                                                                                 
+      82 -                }                                                                                                                                                                                                          
+      83 -            }                                                                                                                                                                                                              
+      84 -        }                                                                                                                                                                                                                  
+      85 -        vec                                                                                                                                                                                                                
+      76 +        (start..end).flat_map(move |x| {                                                                                                                                                                                   
+      77 +            (-1..=1).filter_map(move |y_delta| {                                                                                                                                                                           
+      78 +                self.line.checked_sub_signed(y_delta).map(|y| Point(x, y))                                                                                                                                                 
+      79 +            })                                                                                                                                                                                                             
+      80 +        })                                                                                                                                                                                                                 
+      81      }
+      87 -                                                                                                                                                                                                                           
+      88 -    fn get_number(&self) -> usize {                                                                                                                                                                                        
+      89 -        self.number                                                                                                                                                                                                        
+      90 -    }                                                                                                                                                                                                                      
+      82  }
+      83  
+      84  #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+
+● Update(src/main.rs)
+  ⎿  Added 1 line, removed 1 line                                                                                                                                                                                                    
+      86  
+      87  impl From<(usize, usize)> for Point {
+      88      fn from(value: (usize, usize)) -> Self {
+      89 -        Point(value.0, value.0)                                                                                                                                                                                            
+      89 +        Point(value.0, value.1)                                                                                                                                                                                            
+      90      }
+      91  }
+      92  
+
+● Update(src/main.rs)
+  ⎿  Added 3 lines, removed 3 lines                                                                                                                                                                                                  
+      92  
+      93  #[cfg(test)]
+      94  mod test {
+      95 -    use crate::{InsertNumber, Point};                                                                                                                                                                                      
+      95 +    use crate::{PartNumber, Point};                                                                                                                                                                                        
+      96  
+      97      #[test]
+      98      fn basic_test() {
+     ...
+      103  
+      104      #[test]
+      105      fn test_get_adjacents() {
+      106 -        let number = InsertNumber {                                                                                                                                                                                       
+      106 +        let number = PartNumber {                                                                                                                                                                                         
+      107              start: 5,
+      108              end: 8,
+      109              line: 0,
+     ...
+      121              Point(8, 1),
+      122              Point(8, 0),
+      123          ];
+      124 -        let result = number.get_adjacents();                                                                                                                                                                              
+      124 +        let result: Vec<Point> = number.get_adjacents().collect();                                                                                                                                                        
+      125          assert_eq!(result, solution);
+      126      }
+      127  }
+
+● Update(src/main.rs)
+  ⎿  Added 1 line, removed 1 line                                                                                                                                                                                                    
+      1 -use std::{collections::{HashSet, VecDeque}, fs};                                                                                                                                                                            
+      1 +use std::{collections::HashSet, fs};                                                                                                                                                                                        
+      2  
+      3  use regex::Regex;
+      4  
