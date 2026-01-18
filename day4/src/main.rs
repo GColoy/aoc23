@@ -66,7 +66,11 @@ impl ScratchCardStack {
     fn get_card_amount(&self) -> i32 {
         let mut cache: HashMap<CardId, i32> = HashMap::new();
         self.stack.iter()
-            .map(|(id, _card)| self.get_card_amount_of_card(id, &mut cache) )
+            .map(|(id, _card)| { 
+                // println!("Current cache: {cache:?}");
+                // println!("Now looking at: {id:?}");
+                self.get_card_amount_of_card(id, &mut cache) 
+            })
             .sum()
     }
 
